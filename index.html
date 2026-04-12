@@ -1,0 +1,2219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Little League Fielding Coach</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1c2918;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #e2e8f0;
+}
+
+/* ── Top bar ── */
+.top-bar {
+  background: #0f172a;
+  padding: 13px 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+.top-bar-title {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: 0.2px;
+}
+.top-bar-sub {
+  font-size: 0.8em;
+  color: #64748b;
+  margin-left: 4px;
+}
+
+/* ── Main layout ── */
+.app-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px;
+  flex: 1;
+}
+.field-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.subtitle {
+  font-size: 0.82em;
+  color: #64748b;
+  text-align: center;
+}
+canvas {
+  cursor: crosshair;
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+  max-width: 100%;
+  display: block;
+}
+.controls { display: flex; gap: 12px; align-items: center; }
+#resetBtn {
+  padding: 9px 22px;
+  background: #1e3a5f;
+  color: #bfdbfe;
+  border: 1.5px solid #3b82f6;
+  border-radius: 6px;
+  font-size: 0.88em;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#resetBtn:hover { background: #2563eb; color: #fff; }
+
+.legend { display: flex; gap: 16px; font-size: 0.78em; color: #64748b; flex-wrap: wrap; justify-content: center; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.swatch { width: 20px; height: 3px; border-radius: 2px; }
+
+#hint {
+  font-size: 0.82em;
+  font-weight: 500;
+  color: #7dd3fc;
+  min-height: 1.3em;
+  text-align: center;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 222px;
+  flex-shrink: 0;
+  background: #0f172a;
+  border-radius: 10px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.sidebar-heading {
+  font-size: 0.7em;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 1.3px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #1e293b;
+}
+.sidebar-section h3 {
+  font-size: 0.68em;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  margin-bottom: 12px;
+}
+
+/* Toggle switches */
+.runner-group { display: flex; flex-direction: column; gap: 2px; }
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 2px;
+  cursor: pointer;
+  user-select: none;
+  color: #94a3b8;
+  font-size: 0.88em;
+  border-radius: 4px;
+  transition: color 0.12s;
+}
+.toggle-row:hover { color: #e2e8f0; }
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: #334155;
+  border-radius: 12px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #64748b;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s, background 0.2s;
+}
+.toggle-switch input:checked ~ .toggle-track { background: #166534; }
+.toggle-switch input:checked ~ .toggle-track::after {
+  transform: translateX(20px);
+  background: #4ade80;
+}
+.toggle-row:has(input:checked) { color: #d1fae5; }
+
+/* Outs selector */
+.outs-group { display: flex; gap: 8px; }
+.out-btn {
+  flex: 1;
+  padding: 10px 4px;
+  background: #1e293b;
+  color: #64748b;
+  border: 1.5px solid #334155;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.15em;
+  font-weight: 700;
+  font-family: inherit;
+  text-align: center;
+  transition: all 0.15s;
+}
+.out-btn:hover:not(.active) { background: #263347; color: #94a3b8; }
+.out-btn.active { background: #7f1d1d; color: #fef2f2; border-color: #dc2626; }
+
+/* Hit type selector */
+.hittype-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.ht-btn {
+  padding: 9px 6px;
+  background: #1e293b;
+  color: #64748b;
+  border: 1.5px solid #334155;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.78em;
+  font-weight: 600;
+  font-family: inherit;
+  text-align: center;
+  transition: all 0.15s;
+  line-height: 1.2;
+}
+.ht-btn:hover:not(.active) { background: #263347; color: #94a3b8; }
+.ht-btn.active { background: #1e3a5f; color: #93c5fd; border-color: #3b82f6; }
+
+/* Situation summary */
+.situ-summary {
+  font-size: 0.78em;
+  color: #64748b;
+  line-height: 1.65;
+  padding-top: 12px;
+  border-top: 1px solid #1e293b;
+}
+.situ-summary strong {
+  color: #94a3b8;
+  display: block;
+  margin-bottom: 3px;
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── Manage Players button ── */
+#managePlayersBtn {
+  width: 100%;
+  padding: 9px 14px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1.5px solid #334155;
+  border-radius: 6px;
+  font-size: 0.84em;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+#managePlayersBtn:hover { background: #263347; color: #e2e8f0; border-color: #475569; }
+
+/* ── Players modal ── */
+.players-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.players-modal.hidden { display: none; }
+.players-panel {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  width: 300px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.85);
+}
+.players-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid #1e293b;
+  position: sticky;
+  top: 0;
+  background: #0f172a;
+  z-index: 1;
+}
+.players-panel-header span {
+  font-size: 0.88em;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: 0.2px;
+}
+.players-panel-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 1em;
+  cursor: pointer;
+  padding: 3px 7px;
+  border-radius: 4px;
+  line-height: 1;
+  font-family: inherit;
+  transition: all 0.12s;
+}
+.players-panel-close:hover { color: #f1f5f9; background: #1e293b; }
+.players-list { padding: 6px 0; }
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 18px;
+  border-bottom: 1px solid rgba(30,41,59,0.7);
+}
+.player-row:last-child { border-bottom: none; }
+.player-pos-label {
+  width: 26px;
+  font-size: 0.82em;
+  font-weight: 700;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.player-thumb-wrap {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+.player-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #475569;
+  display: block;
+}
+.player-no-photo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #1e293b;
+  border: 2px dashed #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  font-size: 1.1em;
+  line-height: 1;
+  user-select: none;
+}
+.player-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+.photo-file-input { display: none; }
+.photo-add-btn {
+  padding: 5px 10px;
+  background: #1e293b;
+  color: #7dd3fc;
+  border: 1px solid #334155;
+  border-radius: 5px;
+  font-size: 0.76em;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.photo-add-btn:hover { background: #1e3a5f; border-color: #3b82f6; }
+.photo-remove-btn {
+  width: 22px;
+  height: 22px;
+  background: #3f1515;
+  color: #f87171;
+  border: 1px solid #7f1d1d;
+  border-radius: 50%;
+  font-size: 0.72em;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.photo-remove-btn:hover { background: #7f1d1d; color: #fff; }
+.photo-remove-btn.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<header class="top-bar">
+  <span class="top-bar-title">Little League Fielding Guide</span>
+  <span class="top-bar-sub">Click the field to see fielding assignments</span>
+</header>
+
+<div class="app-layout">
+
+  <!-- Field panel -->
+  <div class="field-wrap">
+    <canvas id="field" width="700" height="680"></canvas>
+    <div id="hint">Click anywhere on the field to see fielding assignments.</div>
+    <div class="controls">
+      <button id="resetBtn">Reset Positions</button>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="swatch" style="background:#ff9500"></div>
+        <span>Infielders (P, C, 1B, 2B, SS, 3B)</span>
+      </div>
+      <div class="legend-item">
+        <div class="swatch" style="background:#00d4ff"></div>
+        <span>Outfielders (LF, CF, RF)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-heading">Game Situation</div>
+
+    <div class="sidebar-section">
+      <h3>Runners on Base</h3>
+      <div class="runner-group">
+        <label class="toggle-row">
+          <span>Runner on 1st</span>
+          <div class="toggle-switch">
+            <input type="checkbox" id="r1-cb">
+            <span class="toggle-track"></span>
+          </div>
+        </label>
+        <label class="toggle-row">
+          <span>Runner on 2nd</span>
+          <div class="toggle-switch">
+            <input type="checkbox" id="r2-cb">
+            <span class="toggle-track"></span>
+          </div>
+        </label>
+        <label class="toggle-row">
+          <span>Runner on 3rd</span>
+          <div class="toggle-switch">
+            <input type="checkbox" id="r3-cb">
+            <span class="toggle-track"></span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Number of Outs</h3>
+      <div class="outs-group">
+        <button class="out-btn active" data-out="0">0</button>
+        <button class="out-btn" data-out="1">1</button>
+        <button class="out-btn" data-out="2">2</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Hit Type</h3>
+      <div class="hittype-group">
+        <button class="ht-btn active" data-ht="groundball">Ground Ball</button>
+        <button class="ht-btn" data-ht="flyball">Fly Ball</button>
+        <button class="ht-btn" data-ht="linedrive">Line Drive</button>
+        <button class="ht-btn" data-ht="bunt">Bunt</button>
+        <button class="ht-btn" data-ht="popup">Pop Up</button>
+        <button class="ht-btn" data-ht="basehit">Base Hit</button>
+      </div>
+    </div>
+
+    <div class="situ-summary" id="situSummary">
+      <strong>Current situation</strong>
+      No runners · 0 outs
+    </div>
+
+    <button id="managePlayersBtn">Manage Players</button>
+  </aside>
+
+</div>
+
+<div id="playersModal" class="players-modal hidden">
+  <div class="players-panel">
+    <div class="players-panel-header">
+      <span>Manage Players</span>
+      <button class="players-panel-close" id="closePlayersBtn">✕</button>
+    </div>
+    <div class="players-list" id="playersList"></div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('field');
+const ctx = canvas.getContext('2d');
+const W = 700, H = 680;
+
+const HOME   = {x: 350, y: 600};
+const FIRST  = {x: 490, y: 460};
+const SECOND = {x: 350, y: 320};
+const THIRD  = {x: 210, y: 460};
+
+// ── Field geometry — shared by drawField, isInPlay, drawHitTrajectory ─────────
+const FIELD_START_A = -Math.PI * 0.755;  // left foul line angle (canvas coords)
+const FIELD_END_A   = -Math.PI * 0.245;  // right foul line angle (canvas coords)
+const FIELD_WALL_R  = 448;               // inner face of outfield wall (click boundary)
+
+const DEFAULTS = {
+  'P':  {x: 350, y: 500},
+  'C':  {x: 350, y: 638},
+  '1B': {x: 513, y: 447},
+  '2B': {x: 438, y: 385},
+  'SS': {x: 264, y: 385},
+  '3B': {x: 188, y: 447},
+  'LF': {x: 170, y: 335},
+  'CF': {x: 350, y: 280},
+  'RF': {x: 530, y: 335},
+};
+
+const INFIELD  = ['P', 'C', '1B', '2B', 'SS', '3B'];
+const OUTFIELD = ['LF', 'CF', 'RF'];
+const ALL = [...OUTFIELD, ...INFIELD];
+
+let hitPoint = null;
+let targets  = {};
+
+// ── Game state ────────────────────────────────────────────────────────────────
+const gameState = {
+  runners: { first: false, second: false, third: false },
+  outs: 0,
+  hitType: 'groundball',
+};
+
+// ── Effective defaults — starting positions adjusted for game state ────────────
+// Arrow origins and dot start-positions come from here, not from DEFAULTS.
+let effectiveDefaults = {};
+
+function computeEffectiveDefaults() {
+  for (const p of ALL) effectiveDefaults[p] = {...DEFAULTS[p]};
+  if (gameState.runners.first) {
+    // 1B holds the runner on the bag
+    effectiveDefaults['1B'] = {x: FIRST.x, y: FIRST.y};
+    // 2B shades toward second base, ready to turn the double play
+    effectiveDefaults['2B'] = {x: 405, y: 352};
+  }
+}
+computeEffectiveDefaults();
+
+// Animation state
+const ANIM_DURATION = 1000; // ms
+let currentPos   = {};  // where dots are drawn right now
+let animFrom     = {};  // positions at the moment animation started
+let animTo       = {};  // destination positions
+let animStart    = null;
+let animFrameId  = null;
+
+function initCurrentPos() {
+  for (const p of ALL) currentPos[p] = {...effectiveDefaults[p]};
+}
+initCurrentPos();
+
+function easeInOut(t) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function startAnimation(newTargets) {
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  for (const p of ALL) {
+    animFrom[p] = {...currentPos[p]};
+    animTo[p]   = newTargets[p] ? {x: newTargets[p].x, y: newTargets[p].y}
+                                : {...currentPos[p]};
+  }
+  animStart = null;
+  function step(ts) {
+    if (!animStart) animStart = ts;
+    const elapsed = ts - animStart;
+    const raw = Math.min(elapsed / ANIM_DURATION, 1);
+    const ease = easeInOut(raw);
+    for (const p of ALL) {
+      currentPos[p] = {
+        x: animFrom[p].x + (animTo[p].x - animFrom[p].x) * ease,
+        y: animFrom[p].y + (animTo[p].y - animFrom[p].y) * ease,
+      };
+    }
+    draw();
+    if (raw < 1) animFrameId = requestAnimationFrame(step);
+    else animFrameId = null;
+  }
+  animFrameId = requestAnimationFrame(step);
+}
+
+function at(x, y, desc) { return {x, y, desc: desc || ''}; }
+
+// Returns true if (x, y) is inside the infield diamond polygon.
+function isInsideDiamond(x, y) {
+  const poly = [HOME, FIRST, SECOND, THIRD];
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y;
+    const xj = poly[j].x, yj = poly[j].y;
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// ── Per-hit-type fielding functions ──────────────────────────────────────────
+// Each returns { t: targets object, zone: zone descriptor }
+
+function htGroundBall(hit, dist, a) {
+  const isBuntZone = dist < 80;
+  const inIF = !isBuntZone && isInsideDiamond(hit.x, hit.y);
+  const isMid = !isBuntZone && !inIF && dist <= 275;
+  const t = {};
+  for (const p of ALL) t[p] = {...DEFAULTS[p], desc: ''};
+
+  if (isBuntZone) {
+    t['P']  = at(hit.x,      hit.y - 12, 'Field roller');
+    t['C']  = at(hit.x,      hit.y + 22, 'Field roller');
+    t['1B'] = at(hit.x + 22, hit.y + 6,  'Charge!');
+    t['3B'] = at(hit.x - 22, hit.y + 6,  'Charge!');
+    t['2B'] = at(FIRST.x,  FIRST.y,               'Cover 1B');
+    t['SS'] = at(SECOND.x - 15, SECOND.y + 12,    'Cover 2B');
+    t['LF'] = at(168, 435, 'Backup 3B');
+    t['CF'] = at(350, 288, 'Backup 2B');
+    t['RF'] = at(517, 435, 'Backup 1B');
+  } else if (inIF) {
+    const isRight = a > 30, isMidR = a >= 5 && a <= 30;
+    const isMidC  = a > -5 && a < 5, isMidL = a >= -30 && a <= -5;
+    if (isRight) {
+      t['1B'] = at(hit.x, hit.y,   'Field ball');
+      t['P']  = at(424, 522,       'Cover 1B');     // sprints to cover the vacated bag
+      t['C']  = at(HOME.x, HOME.y, 'Stay home');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['LF'] = at(178, 265,       'Backup 3B');
+      t['CF'] = at(388, 210,       'Shift right');
+      t['RF'] = at(512, 262,       'Backup');
+      const mif = assignMiddleInfielderRoles(a, null, 'to1B');
+      t['SS'] = mif['SS']; t['2B'] = mif['2B'];
+      // SS and 2B roles locked here — do not reassign downstream.
+    } else if (isMidR || isMidC) {
+      t['2B'] = at(hit.x, hit.y,                  'Field ball');
+      t['1B'] = at(FIRST.x, FIRST.y,              'Hold 1B');
+      t['P']  = at(392, 490,                       'Trail to 1B');
+      t['C']  = at(HOME.x, HOME.y,                'Stay home');
+      t['SS'] = at(SECOND.x - 12, SECOND.y + 12, 'Cover 2B');
+      t['3B'] = at(THIRD.x, THIRD.y,              'Hold 3B');
+      t['CF'] = at(350, 220,                       'Backup');
+      t['LF'] = at(188, 252,                       'Hold position');
+      t['RF'] = at(512, 252,                       'Hold position');
+    } else if (isMidL) {
+      t['SS'] = at(hit.x, hit.y,                  'Field ball');
+      t['2B'] = at(SECOND.x + 12, SECOND.y + 12, 'Cover 2B');
+      t['1B'] = at(FIRST.x, FIRST.y,              'Hold 1B');
+      t['P']  = at(312, 490,                       'Backup 3B');
+      t['C']  = at(HOME.x, HOME.y,                'Stay home');
+      t['3B'] = at(THIRD.x, THIRD.y,              'Hold 3B');
+      t['CF'] = at(328, 218,                       'Backup');
+      t['LF'] = at(188, 252,                       'Hold position');
+      t['RF'] = at(512, 252,                       'Hold position');
+    } else {
+      t['3B'] = at(hit.x, hit.y,   'Field ball');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Take throw at 1B');
+      t['C']  = at(HOME.x, HOME.y,  'Stay home');
+      // Pitcher backs up home when a runner can score, otherwise trails the throw to 1B
+      t['P']  = gameState.runners.third
+                  ? at(350, 578, 'Back up home')
+                  : at(284, 518, 'Trail throw to 1B');
+      t['LF'] = at(180, 258,       'Backup 3B');
+      t['CF'] = at(312, 212,       'Shift left');
+      t['RF'] = at(512, 252,       'Hold position');
+      const mif = assignMiddleInfielderRoles(a, null, 'to3B');
+      t['SS'] = mif['SS']; t['2B'] = mif['2B'];
+      // SS and 2B roles locked here — do not reassign downstream.
+    }
+  } else if (isMid) {
+    const isRight = a > 20, isLeft = a < -20;
+    if (isRight) {
+      t['RF'] = at(hit.x, hit.y, 'Field ball');
+      t['2B'] = at(462, 352,     'Cutoff/relay');
+      t['1B'] = at(FIRST.x, FIRST.y,              'Hold 1B');
+      t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B');
+      t['P']  = at(432, 506,     'Backup 1B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['CF'] = at(432, 188,     'Backup RF');
+      t['LF'] = at(255, 215,     'Rotate center');
+    } else if (isLeft) {
+      t['LF'] = at(hit.x, hit.y, 'Field ball');
+      t['SS'] = at(248, 352,     'Cutoff/relay');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B');
+      t['P']  = at(268, 506,     'Backup 3B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['CF'] = at(268, 188,     'Backup LF');
+      t['RF'] = at(445, 215,     'Rotate center');
+    } else {
+      t['CF'] = at(hit.x, hit.y, 'Field ball');
+      t['P']  = at(350, 460,     'Backup 2B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['LF'] = at(235, 192,     'Backup CF');
+      t['RF'] = at(465, 192,     'Backup CF');
+      if (a >= 0) { t['2B'] = at(390, 348, 'Cutoff/relay'); t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B'); }
+      else        { t['SS'] = at(313, 348, 'Cutoff/relay'); t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B'); }
+    }
+  } else {
+    const isRight = a > 25, isLeft = a < -25;
+    if (isRight) {
+      t['RF'] = at(hit.x, hit.y, 'Field ball');
+      t['2B'] = at(460, 350,     'Cutoff/relay');
+      t['1B'] = at(FIRST.x, FIRST.y,              'Hold 1B');
+      t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B');
+      t['P']  = at(435, 505,     'Backup 1B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['CF'] = at(452, 182,     'Backup RF');
+      t['LF'] = at(272, 212,     'Rotate center');
+    } else if (isLeft) {
+      t['LF'] = at(hit.x, hit.y, 'Field ball');
+      t['SS'] = at(244, 350,     'Cutoff/relay');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B');
+      t['P']  = at(264, 505,     'Backup 3B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['CF'] = at(252, 182,     'Backup LF');
+      t['RF'] = at(428, 212,     'Rotate center');
+    } else {
+      t['CF'] = at(hit.x, hit.y, 'Field ball');
+      t['P']  = at(350, 455,     'Backup 2B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['LF'] = at(240, 188,     'Backup CF');
+      t['RF'] = at(460, 188,     'Backup CF');
+      if (a >= 0) { t['2B'] = at(394, 345, 'Cutoff/relay'); t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B'); }
+      else        { t['SS'] = at(308, 345, 'Cutoff/relay'); t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B'); }
+    }
+  }
+  return { t, zone: { isBunt: isBuntZone, isInfield: inIF, isMid, isDeep: !isBuntZone && !inIF && !isMid, dist, a } };
+}
+
+// ── Middle infielder role assignment — ALL SS/2B assignments live here ────────
+// Call this LAST when building target positions so its output overwrites any
+// earlier SS / 2B value and cannot be re-overridden downstream.
+//
+// Ground ball infield zones (gbZone parameter):
+//   'to1B' — 1B has vacated to field; 2B covers the empty first base bag,
+//             SS holds second base alone.
+//   'to3B' — 3B throws to first; SS covers second alone,
+//             2B backs up the throw from foul territory behind first base.
+//
+// Outfield relay zones (gbZone omitted, uses angle a):
+//   Left field / left-center  (a ≤ -20):   SS = cutoff/relay, 2B = cover 2B
+//   Center field              (-20 < a ≤ 20): SS = cutoff/relay, 2B = cover 2B
+//   Right field / right-center (a > 20):   2B = cutoff/relay, SS = cover 2B
+//
+// relayY controls relay depth on outfield balls.
+function assignMiddleInfielderRoles(a, relayY, gbZone) {
+  // ── Ground ball infield overrides (checked first) ─────────────────────────
+  if (gbZone === 'to1B') {
+    // 1B has left the bag to field the ball — 2B covers the vacated first base;
+    // SS holds second base alone.
+    return {
+      '2B': at(FIRST.x - 8, FIRST.y + 5,        'Cover 1B'),
+      'SS': at(SECOND.x - 10, SECOND.y + 12,    'Cover 2B'),
+    };
+  }
+  if (gbZone === 'to3B') {
+    // 3B throws to first — SS covers second alone;
+    // 2B positions in foul territory behind first to back up the throw.
+    return {
+      'SS': at(SECOND.x - 10, SECOND.y + 12,    'Cover 2B'),
+      '2B': at(530, 440,                          'Backup throw'),
+    };
+  }
+  // ── Outfield relay assignment ─────────────────────────────────────────────
+  if (a > 20) {
+    // Right field / right-center — 2B takes the relay line
+    return {
+      '2B': at(428, relayY, 'Cutoff/relay'),
+      'SS': at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B'),
+    };
+  } else {
+    // Center or left — SS takes the relay line; x tracks across center with angle
+    const relayX = a < -20 ? 272 : Math.round(350 + a * 1.5);
+    return {
+      'SS': at(relayX, relayY, 'Cutoff/relay'),
+      '2B': at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B'),
+    };
+  }
+}
+// SS and 2B roles locked here — do not reassign downstream.
+
+// ── Geometry guardrails — do not remove ──────────────────────────────────────
+//
+// 1. RELAY DEPTH CAP: relay/cutoff man never placed deeper than 80% of the
+//    distance from home plate to the outfielder they are relaying for.
+//    Prevents the infielder from standing behind the outfielder.
+function capRelayDepth(relayY, ofY) {
+  const cap = HOME.y - 0.8 * (HOME.y - ofY);   // 80% of OF distance from home
+  return Math.max(relayY, Math.round(cap));       // larger y = closer to home = safe
+}
+
+// 2. INFIELD POPUP ZONE: expanded diamond (28 px outward from centroid) that
+//    defines the area where an infielder can realistically catch a pop up.
+//    Replaces the bare isInsideDiamond test so shallow outfield grass is included.
+const _CENTROID = { x: 350, y: 460 };
+const _EXPANDED_DIAMOND = [
+  { x: 350, y: 628 },   // home side
+  { x: 518, y: 460 },   // first side
+  { x: 350, y: 292 },   // second side
+  { x: 182, y: 460 },   // third side
+];
+function isInfieldPopupZone(px, py) {
+  const poly = _EXPANDED_DIAMOND;
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y;
+    const xj = poly[j].x, yj = poly[j].y;
+    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// 3. OUTFIELDER MINIMUM DEPTH: on pop ups and fly balls, outfielders never
+//    position shallower than y = 305 (approximately the outfield grass edge).
+const OF_MIN_DEPTH_Y = 305;
+function clampOfY(y) { return Math.min(y, OF_MIN_DEPTH_Y); }
+
+// 4. OUTFIELD WALL GUARDRAIL: outfielder destinations can never exceed the
+//    inner edge of the warning track (radius 430 from home plate).
+const OF_GRASS_MAX_R = 430;
+function clampToOutfieldGrass(pos) {
+  const dx = pos.x - HOME.x, dy = pos.y - HOME.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= OF_GRASS_MAX_R) return pos;
+  const scale = OF_GRASS_MAX_R / dist;
+  return { x: Math.round(HOME.x + dx * scale), y: Math.round(HOME.y + dy * scale), desc: pos.desc };
+}
+
+// 5. CLICK BOUNDARY: only accept clicks inside the fair-territory wall arc.
+//    Clicks beyond the wall or in foul territory (|angle| > ~46°) are ignored.
+const FIELD_FOUL_DEG = 46;  // foul lines are at ±46° from straight-ahead
+function isInPlay(x, y) {
+  const dx = x - HOME.x, dy = HOME.y - y;
+  if (dy < 0) return false;                         // behind home plate
+  const dist = Math.hypot(dx, dy);
+  if (dist > FIELD_WALL_R) return false;            // beyond wall
+  if (dist > 30) {
+    const a = Math.atan2(dx, dy) * 180 / Math.PI;
+    if (Math.abs(a) > FIELD_FOUL_DEG) return false; // foul territory
+  }
+  return true;
+}
+// ── End geometry guardrails ───────────────────────────────────────────────────
+
+function htFlyBall(hit, dist, a) {
+  const inIF = dist >= 80 && isInsideDiamond(hit.x, hit.y);
+  const isMid = !inIF && dist <= 275;
+  const isDeepZ = !inIF && dist > 275;
+  const t = {};
+  for (const p of ALL) t[p] = {...DEFAULTS[p], desc: ''};
+
+  if (dist < 80) {
+    t['C']  = at(hit.x, hit.y,     'Catch!');
+    t['P']  = at(hit.x, hit.y - 25,'Back up C');
+    t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+    t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+    t['2B'] = at(SECOND.x + 10, SECOND.y + 15, 'Hold 2B');
+    t['SS'] = at(SECOND.x - 10, SECOND.y + 15, 'Hold 2B');
+  } else if (inIF) {
+    const isRight = a > 30, isMidR = a >= 5 && a <= 30;
+    const isMidC  = a > -5 && a < 5, isMidL = a >= -30 && a <= -5;
+    t['LF'] = at(DEFAULTS['LF'].x, DEFAULTS['LF'].y + 30, 'Hold / tag up');
+    t['CF'] = at(DEFAULTS['CF'].x, DEFAULTS['CF'].y + 30, 'Hold / tag up');
+    t['RF'] = at(DEFAULTS['RF'].x, DEFAULTS['RF'].y + 30, 'Hold / tag up');
+    if (isRight) {
+      t['1B'] = at(hit.x, hit.y,   'Catch!');
+      t['2B'] = at(hit.x - 20, hit.y + 10, 'Back up');
+      t['P']  = at(380, 490,       'Help call');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Hold 2B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+    } else if (isMidR || isMidC) {
+      t['2B'] = at(hit.x, hit.y,   'Catch!');
+      t['SS'] = at(hit.x - 20, hit.y, 'Back up');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['P']  = at(350, 460,       'Help call');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+    } else if (isMidL) {
+      t['SS'] = at(hit.x, hit.y,   'Catch!');
+      t['2B'] = at(hit.x + 20, hit.y, 'Back up');
+      t['3B'] = at(THIRD.x + 15, THIRD.y, 'Help call');
+      t['P']  = at(320, 478,       'Help call');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+    } else {
+      t['3B'] = at(hit.x, hit.y,   'Catch!');
+      t['SS'] = at(hit.x + 20, hit.y + 10, 'Back up');
+      t['P']  = at(295, 505,       'Help call');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Hold 2B');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+    }
+  } else if (isMid) {
+    const r2or3 = gameState.runners.second || gameState.runners.third;
+    const ofY = clampOfY(hit.y);
+    if (a > 20) {                          // right field
+      t['RF'] = at(hit.x, ofY, 'Catch!');
+      t['CF'] = at(430, 185,     'Backup RF');
+      t['LF'] = at(260, 215,     'Rotate center');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['P']  = at(420, 500,     'Back up 1B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+    } else if (a < -20) {                  // left field
+      t['LF'] = at(hit.x, ofY, 'Catch!');
+      t['CF'] = at(270, 185,     'Backup LF');
+      t['RF'] = at(440, 215,     'Rotate center');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['P']  = at(280, 500,     'Back up 3B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+    } else {                               // center
+      t['CF'] = at(hit.x, ofY, 'Catch!');
+      t['LF'] = at(235, 192,     'Backup CF');
+      t['RF'] = at(465, 192,     'Backup CF');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['P']  = at(350, 460,     'Backup 2B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+    }
+    const relayY = capRelayDepth(r2or3 ? 282 : 268, ofY);
+    const mif = assignMiddleInfielderRoles(a, relayY);
+    t['SS'] = mif['SS']; t['2B'] = mif['2B'];
+    // SS and 2B roles locked here — do not reassign downstream.
+
+  } else {                                 // isDeep
+    const r2or3 = gameState.runners.second || gameState.runners.third;
+    const ofY = clampOfY(hit.y);
+    if (a > 25) {                          // deep right
+      t['RF'] = at(hit.x, ofY, 'Catch!');
+      t['CF'] = at(452, 182,     'Backup RF');
+      t['LF'] = at(272, 212,     'Rotate center');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['P']  = at(435, 505,     'Back up 1B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+    } else if (a < -25) {                  // deep left
+      t['LF'] = at(hit.x, ofY, 'Catch!');
+      t['CF'] = at(252, 182,     'Backup LF');
+      t['RF'] = at(428, 212,     'Rotate center');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['P']  = at(264, 505,     'Back up 3B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+    } else {                               // deep center
+      t['CF'] = at(hit.x, ofY, 'Catch!');
+      t['LF'] = at(240, 188,     'Backup CF');
+      t['RF'] = at(460, 188,     'Backup CF');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['P']  = at(350, 455,     'Backup 2B');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+    }
+    const relayY = capRelayDepth(r2or3 ? 268 : 252, ofY);
+    const mif = assignMiddleInfielderRoles(a, relayY);
+    t['SS'] = mif['SS']; t['2B'] = mif['2B'];
+    // SS and 2B roles locked here — do not reassign downstream.
+  }
+  return { t, zone: { isBunt: false, isInfield: inIF, isMid, isDeep: isDeepZ, dist, a } };
+}
+
+function htLineDrive(hit, dist, a) {
+  const inIF = dist >= 80 && isInsideDiamond(hit.x, hit.y);
+  const isMid = !inIF && dist <= 275;
+  const isDeepZ = !inIF && dist > 275;
+  const t = {};
+  for (const p of ALL) t[p] = {...DEFAULTS[p], desc: ''};
+
+  if (dist < 80) {
+    t['P']  = at(hit.x, hit.y,     'Catch / deflect');
+    t['C']  = at(HOME.x, HOME.y,   'Guard home');
+    t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+    t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Hold 2B');
+    t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Hold 2B');
+    t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+  } else if (inIF) {
+    const isRight = a > 30, isMidR = a >= 5 && a <= 30;
+    const isMidC  = a > -5 && a < 5, isMidL = a >= -30 && a <= -5;
+    if (isRight) {
+      t['1B'] = at(hit.x, hit.y,   'Catch / field');
+      t['P']  = at(424, 522,       'Back up 1B');
+      t['C']  = at(HOME.x, HOME.y, 'Stay home');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B');
+      t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['RF'] = at(500, 252,       'Charge');
+      t['CF'] = at(385, 208,       'Shift right');
+      t['LF'] = at(200, 240,       'Hold');
+    } else if (isMidR || isMidC) {
+      t['2B'] = at(hit.x, hit.y,   'Catch / field');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['P']  = at(390, 490,       'Trail to 1B');
+      t['C']  = at(HOME.x, HOME.y, 'Stay home');
+      t['SS'] = at(SECOND.x - 12, SECOND.y + 12, 'Cover 2B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['CF'] = at(350, 218,       'Charge');
+      t['RF'] = at(510, 252,       'Hold');
+      t['LF'] = at(190, 252,       'Hold');
+    } else if (isMidL) {
+      t['SS'] = at(hit.x, hit.y,   'Catch / field');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['P']  = at(312, 490,       'Back up 3B');
+      t['C']  = at(HOME.x, HOME.y, 'Stay home');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['CF'] = at(325, 215,       'Charge');
+      t['LF'] = at(188, 252,       'Hold');
+      t['RF'] = at(510, 252,       'Hold');
+    } else {
+      t['3B'] = at(hit.x, hit.y,   'Catch / field');
+      t['SS'] = at(SECOND.x - 12, SECOND.y + 12, 'Cover 2B');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['P']  = at(284, 518,       'Back up 3B');
+      t['C']  = at(HOME.x, HOME.y, 'Stay home');
+      t['LF'] = at(185, 255,       'Charge');
+      t['CF'] = at(312, 210,       'Shift left');
+      t['RF'] = at(510, 252,       'Hold');
+    }
+  } else {
+    // Line drive to outfield — fast ball, aggressive relay needed
+    const r2or3 = gameState.runners.second || gameState.runners.third;
+    const ofY = clampOfY(hit.y);
+    if (a > 20) {                          // right field
+      t['RF'] = at(hit.x, ofY, 'Field ball');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['P']  = at(432, 506,     'Trail relay');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['CF'] = at(432, 185,     'Backup RF');
+      t['LF'] = at(260, 215,     'Rotate center');
+    } else if (a < -20) {                  // left field
+      t['LF'] = at(hit.x, ofY, 'Field ball');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['P']  = at(268, 506,     'Trail relay');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['CF'] = at(268, 185,     'Backup LF');
+      t['RF'] = at(445, 215,     'Rotate center');
+    } else {                               // center
+      t['CF'] = at(hit.x, ofY, 'Field ball');
+      t['P']  = at(350, 458,     'Trail relay');
+      t['C']  = at(HOME.x, HOME.y, 'Guard home');
+      t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+      t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+      t['LF'] = at(238, 190,     'Backup CF');
+      t['RF'] = at(462, 190,     'Backup CF');
+    }
+    const relayY = capRelayDepth(r2or3 ? 278 : 262, ofY);
+    const mif = assignMiddleInfielderRoles(a, relayY);
+    t['SS'] = mif['SS']; t['2B'] = mif['2B'];
+    // SS and 2B roles locked here — do not reassign downstream.
+  }
+  return { t, zone: { isBunt: false, isInfield: inIF, isMid, isDeep: isDeepZ, dist, a } };
+}
+
+function htBunt(hit) {
+  const t = {};
+  for (const p of ALL) t[p] = {...DEFAULTS[p], desc: ''};
+  t['P']  = at(hit.x,      hit.y - 12, 'Field bunt');
+  t['C']  = at(hit.x,      hit.y + 22, 'Field bunt');
+  t['1B'] = at(hit.x + 22, hit.y + 6,  'Charge!');
+  t['3B'] = at(hit.x - 22, hit.y + 6,  'Charge!');
+  t['2B'] = at(FIRST.x,  FIRST.y,               'Cover 1B');
+  t['SS'] = at(SECOND.x - 15, SECOND.y + 12,    'Cover 2B');
+  t['LF'] = at(168, 435, 'Backup 3B');
+  t['CF'] = at(350, 288, 'Backup 2B');
+  t['RF'] = at(517, 435, 'Backup 1B');
+  return { t, zone: { isBunt: true, isInfield: false, isMid: false, isDeep: false, dist: 50, a: 0 } };
+}
+
+function htPopup(hit, dist, a) {
+  // Pop up zones are self-contained — no other hit type logic should bleed into this block.
+  const t = {};
+  for (const p of ALL) t[p] = {...DEFAULTS[p], desc: ''};
+
+  // PRIORITY RULE: outfielders always have priority on any ball in the outfield grass.
+  // Check this first — if the ball is on grass, skip all infield logic entirely.
+  // isInfieldPopupZone expands the diamond 28 px outward so shallow grass pops are covered.
+  const inDirt = isInfieldPopupZone(hit.x, hit.y) || dist < 80;
+
+  if (!inDirt) {
+    // ── OUTFIELD POP UP ───────────────────────────────────────────────────────
+    // Outfielders only. SS and 2B never chase into the outfield grass.
+    const ofY = clampOfY(hit.y);
+    if (a > 25) {
+      // Right field — RF has priority
+      t['RF'] = at(hit.x, ofY, 'Catch!');
+      t['CF'] = at(438, 182,   'Backup RF');
+      t['LF'] = at(262, 215,   'Hold');
+    } else if (a >= 5) {
+      // Right-center — RF and CF converge, CF has priority
+      t['CF'] = at(hit.x, ofY,             'Catch! (priority)');
+      t['RF'] = at(hit.x + 24, ofY + 18,   'Converge');
+      t['LF'] = at(258, 210,               'Hold');
+    } else if (a > -5) {
+      // Center field — CF has priority
+      t['CF'] = at(hit.x, ofY, 'Catch!');
+      t['LF'] = at(238, 192,   'Backup CF');
+      t['RF'] = at(462, 192,   'Backup CF');
+    } else if (a >= -25) {
+      // Left-center — LF and CF converge, LF has priority
+      t['LF'] = at(hit.x, ofY,             'Catch! (priority)');
+      t['CF'] = at(hit.x - 24, ofY + 18,   'Converge');
+      t['RF'] = at(442, 210,               'Hold');
+    } else {
+      // Left field — LF has priority
+      t['LF'] = at(hit.x, ofY, 'Catch!');
+      t['CF'] = at(262, 182,   'Backup LF');
+      t['RF'] = at(438, 215,   'Hold');
+    }
+    t['1B'] = at(FIRST.x, FIRST.y,  'Hold 1B');
+    t['3B'] = at(THIRD.x, THIRD.y,  'Hold 3B');
+    t['P']  = at(350, 462,           'Trail / backup');
+    t['C']  = at(HOME.x, HOME.y,     'Guard home');
+    // SS and 2B cover second base using the same zone rule as fly balls
+    const mif = assignMiddleInfielderRoles(a, SECOND.y + 15);
+    t['SS'] = mif['SS']; t['2B'] = mif['2B'];
+    // SS and 2B roles locked here — do not reassign downstream.
+
+  } else {
+    // ── INFIELD POP UP ────────────────────────────────────────────────────────
+    // Six proximity zones — closest key landmark determines fielder priority.
+    // Outfielders hold at default depth throughout.
+    t['LF'] = at(DEFAULTS['LF'].x, DEFAULTS['LF'].y + 15, 'Hold');
+    t['CF'] = at(DEFAULTS['CF'].x, DEFAULTS['CF'].y + 15, 'Hold');
+    t['RF'] = at(DEFAULTS['RF'].x, DEFAULTS['RF'].y + 15, 'Hold');
+
+    const MOUND = { x: 350, y: 500 };
+    const dHome  = Math.hypot(hit.x - HOME.x,  hit.y - HOME.y);
+    const dFirst = Math.hypot(hit.x - FIRST.x, hit.y - FIRST.y);
+    const dThird = Math.hypot(hit.x - THIRD.x, hit.y - THIRD.y);
+    const dMound = Math.hypot(hit.x - MOUND.x, hit.y - MOUND.y);
+
+    if (dHome < 80) {
+      // Near home plate — Catcher has priority, Pitcher backs off
+      t['C']  = at(hit.x, hit.y,              'Catch! (C priority)');
+      t['P']  = at(hit.x, hit.y - 28,         'Back off — C has it');
+      t['1B'] = at(FIRST.x - 15, FIRST.y + 12,'Help call');
+      t['3B'] = at(THIRD.x + 15, THIRD.y + 12,'Help call');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 15, 'Hold');
+      t['SS'] = at(SECOND.x - 10, SECOND.y + 15, 'Hold');
+    } else if (dFirst < 72) {
+      // Near first base — 1B has priority, 2B backs off
+      t['1B'] = at(hit.x, hit.y,              'Catch! (1B priority)');
+      t['2B'] = at(hit.x - 24, hit.y + 14,    'Back off — 1B has it');
+      t['P']  = at(400, 510,                  'Help call');
+      t['C']  = at(HOME.x, HOME.y,            'Guard home');
+      t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B');
+      t['3B'] = at(THIRD.x, THIRD.y,          'Hold 3B');
+    } else if (dThird < 72) {
+      // Near third base — 3B has priority, SS backs off
+      t['3B'] = at(hit.x, hit.y,              'Catch! (3B priority)');
+      t['SS'] = at(hit.x + 24, hit.y + 14,    'Back off — 3B has it');
+      t['P']  = at(300, 510,                  'Help call');
+      t['C']  = at(HOME.x, HOME.y,            'Guard home');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B');
+      t['1B'] = at(FIRST.x, FIRST.y,          'Hold 1B');
+    } else if (dMound < 72) {
+      // Near pitcher's mound — Pitcher has priority, surrounding infielders back off
+      t['P']  = at(hit.x, hit.y,              'Catch! (P priority)');
+      t['C']  = at(HOME.x, HOME.y,            'Guard home');
+      t['1B'] = at(FIRST.x - 15, FIRST.y + 10,'Back off');
+      t['3B'] = at(THIRD.x + 15, THIRD.y + 10,'Back off');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B');
+      t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B');
+    } else if (a > 10) {
+      // Between first and second — 2B has priority, 1B backs off
+      t['2B'] = at(hit.x, hit.y,              'Catch! (2B priority)');
+      t['1B'] = at(FIRST.x, FIRST.y,          'Back off — 2B has it');
+      t['P']  = at(392, 490,                  'Help call');
+      t['C']  = at(HOME.x, HOME.y,            'Guard home');
+      t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover bag');
+      t['3B'] = at(THIRD.x, THIRD.y,          'Hold 3B');
+    } else {
+      // Between second and third — SS has priority, 3B backs off
+      t['SS'] = at(hit.x, hit.y,              'Catch! (SS priority)');
+      t['3B'] = at(THIRD.x, THIRD.y,          'Back off — SS has it');
+      t['P']  = at(308, 490,                  'Help call');
+      t['C']  = at(HOME.x, HOME.y,            'Guard home');
+      t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover bag');
+      t['1B'] = at(FIRST.x, FIRST.y,          'Hold 1B');
+    }
+  }
+
+  return { t, zone: { isBunt: false, isInfield: inDirt, isMid: !inDirt && dist <= 275, isDeep: !inDirt && dist > 275, dist, a } };
+}
+
+function htBaseHit(hit, dist, a) {
+  const t = {};
+  for (const p of ALL) t[p] = {...DEFAULTS[p], desc: ''};
+  const isRight = a > 20, isLeft = a < -20;
+  if (isRight) {
+    t['RF'] = at(hit.x, hit.y, 'Field ball');
+    t['2B'] = at(462, 352,     'Cutoff');
+    t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+    t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B');
+    t['P']  = at(432, 506,     'Trail cutoff');
+    t['C']  = at(HOME.x, HOME.y, 'Guard home');
+    t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+    t['CF'] = at(430, 185,     'Backup RF');
+    t['LF'] = at(255, 215,     'Rotate center');
+  } else if (isLeft) {
+    t['LF'] = at(hit.x, hit.y, 'Field ball');
+    t['SS'] = at(248, 352,     'Cutoff');
+    t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+    t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B');
+    t['P']  = at(268, 506,     'Trail cutoff');
+    t['C']  = at(HOME.x, HOME.y, 'Guard home');
+    t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+    t['CF'] = at(268, 185,     'Backup LF');
+    t['RF'] = at(445, 215,     'Rotate center');
+  } else {
+    t['CF'] = at(hit.x, hit.y, 'Field ball');
+    t['P']  = at(350, 458,     'Trail cutoff');
+    t['C']  = at(HOME.x, HOME.y, 'Guard home');
+    t['1B'] = at(FIRST.x, FIRST.y, 'Hold 1B');
+    t['3B'] = at(THIRD.x, THIRD.y, 'Hold 3B');
+    t['LF'] = at(238, 190,     'Backup CF');
+    t['RF'] = at(462, 190,     'Backup CF');
+    if (a >= 0) { t['2B'] = at(390, 348, 'Cutoff'); t['SS'] = at(SECOND.x - 10, SECOND.y + 12, 'Cover 2B'); }
+    else        { t['SS'] = at(313, 348, 'Cutoff'); t['2B'] = at(SECOND.x + 10, SECOND.y + 12, 'Cover 2B'); }
+  }
+  return { t, zone: { isBunt: false, isInfield: false, isMid: dist <= 275, isDeep: dist > 275, dist, a } };
+}
+
+function computeTargets(hit) {
+  const dx = hit.x - HOME.x, dy = HOME.y - hit.y;
+  const dist = Math.hypot(dx, dy);
+  const a    = Math.atan2(dx, dy) * 180 / Math.PI;
+  const ht   = gameState.hitType;
+
+  let result;
+  switch (ht) {
+    case 'bunt':      result = htBunt(hit, dist, a); break;
+    case 'flyball':   result = htFlyBall(hit, dist, a); break;
+    case 'linedrive': result = htLineDrive(hit, dist, a); break;
+    case 'popup':     result = htPopup(hit, dist, a); break;
+    case 'basehit':   result = htBaseHit(hit, dist, a); break;
+    default:          result = htGroundBall(hit, dist, a);
+  }
+
+  const { t, zone } = result;
+  zone.ht = ht;
+  applyGameState(t, hit, zone);
+  return t;
+}
+
+function computeAndClampTargets(hit) {
+  const t = computeTargets(hit);
+  for (const p of OUTFIELD) { if (t[p]) t[p] = clampToOutfieldGrass(t[p]); }
+  return t;
+}
+
+// ── Game-state overlay ────────────────────────────────────────────────────────
+function applyGameState(t, hit, zone) {
+  const { isBunt, isInfield, isMid, isDeep, dist, a, ht } = zone;
+  const r1 = gameState.runners.first;
+  const r2 = gameState.runners.second;
+  const r3 = gameState.runners.third;
+  const lt2 = gameState.outs < 2;
+  const hasRunner = r1 || r2 || r3;
+  const basesLoaded = r1 && r2 && r3;
+  const isGroundPlay = ht === 'groundball' || ht === 'bunt';
+  const isAirPlay    = ht === 'flyball'    || ht === 'popup';
+
+  function shiftIn(p, amt) {
+    if (!t[p]) return;
+    const d = t[p].desc;
+    // Never shift fielders with fixed coverage or charging assignments
+    if (d === 'Field ball' || d === 'Field bunt' || d === 'Field roller' ||
+        d === 'Charge!' || d === 'Charge' ||
+        d === 'Cover 1B' || d === 'Backup throw' || d === 'Take throw at 1B') return;
+    t[p] = { x: t[p].x, y: Math.min(t[p].y + amt, HOME.y - 55), desc: d };
+  }
+  function setDesc(p, desc) {
+    if (t[p]) t[p] = { ...t[p], desc };
+  }
+
+  // ── 1. Outfielders shallow when runner can score (not on air plays) ───────
+  if ((r2 || r3) && lt2 && !isAirPlay) {
+    for (const p of OUTFIELD) {
+      if (t[p] && t[p].desc !== 'Field ball') {
+        t[p] = { x: t[p].x, y: Math.min(t[p].y + 40, HOME.y - 80), desc: 'Shallow — cut run' };
+      }
+    }
+  }
+
+  // ── 2. Infield in: runner on 3rd, < 2 outs, ground play only ─────────────
+  if (r3 && lt2 && (isInfield || isBunt) && isGroundPlay) {
+    shiftIn('1B', 50);  shiftIn('2B', 50);
+    shiftIn('SS', 50);  shiftIn('3B', 50);
+    for (const p of ['1B', '2B', 'SS', '3B']) {
+      const d = t[p] && t[p].desc;
+      if (d && d !== 'Field ball' && d !== 'Field bunt' && d !== 'Field roller' &&
+          d !== 'Charge!' && d !== 'Charge' &&
+          d !== 'Cover 1B' && d !== 'Backup throw' && d !== 'Take throw at 1B')
+        setDesc(p, 'Infield in');
+    }
+    if (t['C']) t['C'] = { x: HOME.x, y: HOME.y - 8, desc: 'Guard home' };
+    if (t['P'] && t['P'].desc !== 'Field bunt' && t['P'].desc !== 'Field roller') setDesc('P', 'Back up home');
+  }
+
+  // ── 3. Double-play: runner on 1st, < 2 outs, ground play only ────────────
+  if (r1 && lt2 && (isInfield || isBunt) && !basesLoaded && isGroundPlay) {
+    // Skip 2B if they are locked in a coverage role that can't be changed for DP
+    const d2B = t['2B'] && t['2B'].desc;
+    if (t['2B'] && d2B !== 'Cover 1B' && d2B !== 'Backup throw')
+      setDesc('2B', d2B === 'Field ball' ? 'Field → DP' : 'Turn DP at 2B');
+    if (t['SS']) setDesc('SS', t['SS'].desc === 'Field ball' ? 'Field → DP' : 'Cover 2B — DP');
+    if (t['1B'] && t['1B'].desc === 'Hold 1B') setDesc('1B', 'Take DP throw');
+  }
+
+  // ── 4. Bases loaded, < 2 outs, ground play: play for the force ───────────
+  if (basesLoaded && lt2 && (isInfield || isBunt) && isGroundPlay) {
+    if (t['C'])  t['C']  = { x: HOME.x, y: HOME.y - 8, desc: 'Force — home' };
+    if (t['3B'] && t['3B'].desc !== 'Field ball') setDesc('3B', 'Force — 3B');
+    if (t['SS']) setDesc('SS', t['SS'].desc === 'Field ball' ? 'Field → force' : 'Force — 2B');
+    // Skip 2B if locked in a coverage role at another base
+    const d2Bf = t['2B'] && t['2B'].desc;
+    if (t['2B'] && d2Bf !== 'Cover 1B' && d2Bf !== 'Backup throw')
+      setDesc('2B', d2Bf === 'Field ball' ? 'Field → force' : 'Force — 2B');
+    if (t['1B'] && t['1B'].desc !== 'Field ball' && t['1B'].desc !== 'Take throw at 1B')
+      setDesc('1B', 'Force — 1B');
+  }
+
+  // ── 5. Cutoff / relay: runners on outfield non-air hits ──────────────────
+  if (hasRunner && (isMid || isDeep) && !isAirPlay) {
+    if (a > 20) {
+      setDesc('2B', 'Cutoff/relay');
+      setDesc('SS', 'Cover 2B');
+    } else if (a < -20) {
+      setDesc('SS', 'Cutoff/relay');
+      setDesc('2B', 'Cover 2B');
+    } else if (r3) {
+      if (a >= 0) { setDesc('2B', 'Cutoff/relay'); setDesc('SS', 'Cover 2B'); }
+      else        { setDesc('SS', 'Cutoff/relay'); setDesc('2B', 'Cover 2B'); }
+    }
+  }
+
+  // ── 6. Runner on 1st, outfield hit: reinforce backup / relay ─────────────
+  if (r1 && (isMid || isDeep) && !isAirPlay) {
+    if (a > 20  && t['CF'] && t['CF'].desc !== 'Field ball') setDesc('CF', 'Backup RF');
+    if (a < -20 && t['CF'] && t['CF'].desc !== 'Field ball') setDesc('CF', 'Backup LF');
+  }
+
+  // ── 7. Fly ball / popup tag-up awareness ─────────────────────────────────
+  if (isAirPlay && hasRunner && lt2) {
+    if (r3 && t['C']) t['C'] = { ...t['C'], desc: 'Guard home — tag up' };
+    if (r2 && t['3B'] && t['3B'].desc && t['3B'].desc.includes('Hold')) setDesc('3B', 'Hold 3B — tag up');
+    if (r1 && t['2B'] && t['2B'].desc && t['2B'].desc.includes('Hold')) setDesc('2B', 'Hold 2B — tag up');
+  }
+}
+
+// ─── Drawing ─────────────────────────────────────────────────────────────────
+
+function drawScoreboard() {
+  // Wrigley-style manual scoreboard — LF foul territory, beyond the wall
+  const bx = 4, by = 153;        // board top-left
+  const bw = 108, bh = 48;       // outer dimensions
+
+  // Drop shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.75)';
+  ctx.shadowBlur  = 10;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 4;
+  ctx.fillStyle = '#1a3522';
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Weathered board face — very subtle lighter top edge to suggest 3-D frame
+  const grad = ctx.createLinearGradient(bx, by, bx, by + bh);
+  grad.addColorStop(0,   '#22402a');
+  grad.addColorStop(0.12,'#1b3522');
+  grad.addColorStop(1,   '#172d1c');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 2);
+  ctx.fill();
+
+  // Outer border
+  ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 2);
+  ctx.stroke();
+
+  // ── Layout constants ──────────────────────────────────────────────────────
+  const pad   = 3;
+  const lblW  = 12;    // label column ("V"/"H")
+  const cellW = 9;     // per-inning cell width
+  const sepW  = 5;     // gap between innings and R/H/E block
+  const rheW  = 9;     // per-RHE cell width
+
+  const x0 = bx + pad;                        // content left edge
+  const x1 = x0 + lblW;                       // innings block left
+  const xSep = x1 + 6 * cellW;               // separator x
+  const xRHE = xSep + sepW;                  // RHE block left
+  const hdrH = 12, rowH = 11;
+  const yHdr  = by + pad;
+  const yVis  = yHdr + hdrH;
+  const yHome = yVis + rowH;
+
+  // ── Header row: inning numbers + R H E ───────────────────────────────────
+  ctx.font = 'bold 7px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const midHdr = yHdr + hdrH / 2;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  for (let i = 0; i < 6; i++) {
+    ctx.fillText(String(i + 1), x1 + i * cellW + cellW / 2, midHdr);
+  }
+  // R is highlighted gold; H and E are white
+  ['R', 'H', 'E'].forEach((lbl, i) => {
+    ctx.fillStyle = i === 0 ? 'rgba(255,205,80,0.90)' : 'rgba(255,255,255,0.55)';
+    ctx.fillText(lbl, xRHE + i * rheW + rheW / 2, midHdr);
+  });
+
+  // ── Row labels: V and H ───────────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(255,255,255,0.70)';
+  ctx.fillText('V', x0 + lblW / 2, yVis  + rowH / 2);
+  ctx.fillText('H', x0 + lblW / 2, yHome + rowH / 2);
+
+  // ── Grid lines ────────────────────────────────────────────────────────────
+  const gridRight = xRHE + 3 * rheW;
+
+  // Horizontal dividers
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth   = 0.5;
+  [yHdr, yVis, yHome, yHome + rowH].forEach(y => {
+    ctx.beginPath();
+    ctx.moveTo(x0, y);
+    ctx.lineTo(gridRight, y);
+    ctx.stroke();
+  });
+
+  // Vertical: label/innings separator
+  ctx.beginPath();
+  ctx.moveTo(x1, yVis);
+  ctx.lineTo(x1, yHome + rowH);
+  ctx.stroke();
+
+  // Vertical: thin lines between inning cells
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  for (let i = 1; i < 6; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x1 + i * cellW, yVis);
+    ctx.lineTo(x1 + i * cellW, yHome + rowH);
+    ctx.stroke();
+  }
+
+  // Vertical: innings / RHE separator (brighter)
+  ctx.strokeStyle = 'rgba(255,255,255,0.38)';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(xSep + sepW / 2, yHdr);
+  ctx.lineTo(xSep + sepW / 2, yHome + rowH);
+  ctx.stroke();
+
+  // ── Flagpole and pennant ──────────────────────────────────────────────────
+  const fpx = bx + bw / 2, fpy = by;
+  ctx.strokeStyle = 'rgba(210,210,210,0.80)';
+  ctx.lineWidth   = 1.5;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(fpx, fpy);
+  ctx.lineTo(fpx, fpy - 28);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // Pennant (filled triangle — red team pennant)
+  ctx.beginPath();
+  ctx.moveTo(fpx,      fpy - 28);
+  ctx.lineTo(fpx + 17, fpy - 22);
+  ctx.lineTo(fpx,      fpy - 15);
+  ctx.closePath();
+  ctx.fillStyle   = '#c02020';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,180,180,0.40)';
+  ctx.lineWidth   = 0.5;
+  ctx.stroke();
+}
+
+function drawSquareBase(cx, cy, size) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = '#f4f4f4';
+  ctx.strokeStyle = 'rgba(180,180,180,0.4)';
+  ctx.lineWidth = 0.5;
+  ctx.fillRect(-size / 2, -size / 2, size, size);
+  ctx.strokeRect(-size / 2, -size / 2, size, size);
+  ctx.restore();
+}
+
+function drawHomePlate(cx, cy) {
+  const w = 13, topY = 12, sideH = 6, botH = 7;
+  ctx.beginPath();
+  ctx.moveTo(cx,     cy - topY);         // top point (faces pitcher)
+  ctx.lineTo(cx + w, cy - sideH);        // upper-right
+  ctx.lineTo(cx + w, cy + botH);         // lower-right
+  ctx.lineTo(cx - w, cy + botH);         // lower-left
+  ctx.lineTo(cx - w, cy - sideH);        // upper-left
+  ctx.closePath();
+  ctx.fillStyle = '#f4f4f4';
+  ctx.fill();
+}
+
+function drawField() {
+  const cx = HOME.x, cy = HOME.y;
+  const startA = FIELD_START_A;
+  const endA   = FIELD_END_A;
+
+  // Filled arc-ring (donut slice) between two radii, spanning the outfield arc.
+  // Both arcs must travel anticlockwise (true) so they both take the SHORT path
+  // over the top of the field.  Using false for the inner arc would make it
+  // sweep 268° southward through the infield instead of 92° over the top.
+  function arcRing(r1, r2, color) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r2, startA, endA, true);  // outer edge: L → R over top
+    ctx.arc(cx, cy, r1, endA, startA, true);  // inner edge: R → L over top (reversed)
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  // ── 1. Foul territory background ──────────────────────────────────────────
+  ctx.fillStyle = '#162e16';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── 2. Bleachers / crowd suggestion — just outside the wall ───────────────
+  arcRing(462, 482, '#192419');
+  // Faint outer edge to suggest bleacher rows
+  ctx.beginPath();
+  ctx.arc(cx, cy, 480, startA, endA, true);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 472, startA, endA, true);
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // ── 3. Outfield wall — thick dark-green padded band ───────────────────────
+  arcRing(448, 462, '#1d3d22');
+  // White padding stripe along the top (inside/fair-territory face of wall)
+  ctx.beginPath();
+  ctx.arc(cx, cy, 459, startA, endA, true);
+  ctx.strokeStyle = 'rgba(255,255,255,0.82)';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  // Subtle shadow along the wall's inner base (depth illusion)
+  ctx.beginPath();
+  ctx.arc(cx, cy, 449, startA, endA, true);
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // ── 4. Warning track — tan/dirt, 18 px wide ───────────────────────────────
+  arcRing(430, 448, '#b8935a');
+  // Subtle inner edge line where grass meets track
+  ctx.beginPath();
+  ctx.arc(cx, cy, 431, startA, endA, true);
+  ctx.strokeStyle = 'rgba(140,100,40,0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // ── 5. Outfield grass — base fill ─────────────────────────────────────────
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, 430, startA, endA, true);
+  ctx.closePath();
+  ctx.fillStyle = '#267030';
+  ctx.fill();
+
+  // Mowing stripes — alternating lighter/darker arcs radiating from home
+  const stripeColors = ['#2b7535', '#216528', '#2b7535', '#216528', '#2b7535'];
+  const stripeEdges  = [128, 190, 252, 314, 376, 430];
+  for (let i = 0; i < 5; i++) {
+    arcRing(stripeEdges[i], stripeEdges[i + 1], stripeColors[i]);
+  }
+
+  // ── 6. Infield dirt ───────────────────────────────────────────────────────
+  ctx.beginPath();
+  ctx.moveTo(HOME.x,        HOME.y + 20);
+  ctx.lineTo(FIRST.x + 24, FIRST.y + 8);
+  ctx.lineTo(SECOND.x,     SECOND.y - 20);
+  ctx.lineTo(THIRD.x - 24, THIRD.y + 8);
+  ctx.closePath();
+  ctx.fillStyle = '#b87848';
+  ctx.fill();
+
+  // ── 7. Infield grass island ───────────────────────────────────────────────
+  ctx.beginPath();
+  ctx.arc(HOME.x, (HOME.y + SECOND.y) / 2, 62, 0, Math.PI * 2);
+  ctx.fillStyle = '#267030';
+  ctx.fill();
+
+  // ── 8. Pitcher's mound ────────────────────────────────────────────────────
+  ctx.beginPath();
+  ctx.arc(350, 500, 14, 0, Math.PI * 2);
+  ctx.fillStyle = '#cc9a60';
+  ctx.fill();
+
+  // ── 9. Chalk foul lines — terminate at the exact arc endpoints ────────────
+  // Use the arc's own startA/endA angles so lines meet the wall cleanly.
+  const foulR = FIELD_WALL_R;  // inner wall edge radius
+  ctx.strokeStyle = 'rgba(255,255,255,0.88)';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'square';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + foulR * Math.cos(endA), cy + foulR * Math.sin(endA));   // right
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + foulR * Math.cos(startA), cy + foulR * Math.sin(startA)); // left
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // ── 10. Scoreboard ─────────────────────────────────────────────────────────
+  drawScoreboard();
+
+  // ── 11. Foul poles — yellow vertical marker at foul line / wall junction ──
+  // Positioned at the exact arc start/end angles so they sit at the wall corners.
+  const poleRadius = 455;
+  [[cx + poleRadius * Math.cos(endA),   cy + poleRadius * Math.sin(endA)],
+   [cx + poleRadius * Math.cos(startA), cy + poleRadius * Math.sin(startA)]].forEach(([px, py]) => {
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,255,120,0.55)';
+    ctx.shadowBlur  = 6;
+    ctx.strokeStyle = '#f0ef70';
+    ctx.lineWidth   = 3;
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(px, py + 14);   // base (in wall surface)
+    ctx.lineTo(px, py - 20);   // top (visible above wall in perspective)
+    ctx.stroke();
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#f0ef70';
+    ctx.fill();
+  });
+
+  // ── 12. Distance markers — inside wall on warning track ───────────────────
+  [
+    [-Math.PI * 0.695, '200'],   // left field
+    [-Math.PI / 2,     '225'],   // center field
+    [-Math.PI * 0.305, '200'],   // right field
+  ].forEach(([ang, txt]) => {
+    const r = 439;
+    const mx = cx + r * Math.cos(ang);
+    const my = cy + r * Math.sin(ang);
+    ctx.save();
+    ctx.font = 'bold 9px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(txt, mx, my);
+    ctx.restore();
+  });
+
+  // ── 13. Bases ──────────────────────────────────────────────────────────────
+  drawSquareBase(FIRST.x,  FIRST.y,  11);
+  drawSquareBase(SECOND.x, SECOND.y, 11);
+  drawSquareBase(THIRD.x,  THIRD.y,  11);
+  drawHomePlate(HOME.x, HOME.y);
+
+  // ── 14. Runner indicators — orange diamonds near each occupied base ────────
+  const runnerMap = [
+    [gameState.runners.first,  FIRST,  16, -16],
+    [gameState.runners.second, SECOND,  0, -21],
+    [gameState.runners.third,  THIRD, -16, -16],
+  ];
+  runnerMap.forEach(([on, base, ox, oy]) => {
+    if (!on) return;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 5;
+    ctx.translate(base.x + ox, base.y + oy);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = '#f97316';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(-6, -6, 12, 12);
+    ctx.strokeRect(-6, -6, 12, 12);
+    ctx.restore();
+  });
+}
+
+function drawArrow(fx, fy, tx, ty, color) {
+  const dx = tx - fx, dy = ty - fy;
+  const len = Math.hypot(dx, dy);
+  if (len < 10) return;
+
+  const ux = dx / len, uy = dy / len;
+  const headLen = 14, headW = 6;
+  const sx = tx - ux * headLen, sy = ty - uy * headLen;
+  const px = -uy, py = ux;
+
+  ctx.save();
+  ctx.globalAlpha = 0.93;
+  ctx.strokeStyle = color;
+  ctx.fillStyle   = color;
+  ctx.lineWidth   = 3;
+  ctx.lineCap     = 'round';
+
+  ctx.beginPath();
+  ctx.moveTo(fx, fy);
+  ctx.lineTo(sx, sy);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(tx, ty);
+  ctx.lineTo(sx + px * headW, sy + py * headW);
+  ctx.lineTo(sx - px * headW, sy - py * headW);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawLabel(tx, ty, text, arrowColor) {
+  if (!text) return;
+  ctx.save();
+  ctx.font = 'bold 10px system-ui, sans-serif';
+  const w = ctx.measureText(text).width + 10;
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
+  ctx.beginPath();
+  ctx.roundRect(tx - w / 2, ty - 8, w, 16, 4);
+  ctx.fill();
+  ctx.fillStyle = arrowColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, tx, ty);
+  ctx.restore();
+}
+
+function drawFielder(pos, label, isOutfielder) {
+  const r = 18;
+  const ringColor = isOutfielder ? '#00d4ff' : '#ff9500';
+  const photo = playerPhotoImages[label];
+
+  // Drop shadow — draw a filled circle just for the shadow, then discard shadow state
+  ctx.save();
+  ctx.shadowColor   = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur    = 10;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 3;
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#f8f8f8';
+  ctx.fill();
+  ctx.restore();
+
+  if (photo && photo.complete && photo.naturalWidth > 0) {
+    // Clip to circle and paint photo over the white base
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(photo, pos.x - r, pos.y - r, r * 2, r * 2);
+    ctx.restore();
+  }
+
+  // Colored ring (always on top)
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+  ctx.strokeStyle = ringColor;
+  ctx.lineWidth = 3.5;
+  ctx.stroke();
+
+  if (photo && photo.complete && photo.naturalWidth > 0) {
+    // Small position badge below the circle
+    const bw = label.length > 2 ? 26 : 22;
+    ctx.fillStyle = 'rgba(0,0,0,0.82)';
+    ctx.beginPath();
+    ctx.roundRect(pos.x - bw / 2, pos.y + r + 2, bw, 13, 3);
+    ctx.fill();
+    ctx.font = `bold ${label.length > 2 ? '9' : '10'}px system-ui, sans-serif`;
+    ctx.fillStyle = ringColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, pos.x, pos.y + r + 8.5);
+  } else {
+    // Default: centered position abbreviation
+    ctx.font = `bold ${label.length > 2 ? '10' : '13'}px system-ui, sans-serif`;
+    ctx.fillStyle = '#111111';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, pos.x, pos.y);
+  }
+}
+
+function drawHitMarker(pos) {
+  const ht = gameState.hitType;
+  const typeColors = {
+    groundball: '#c97c4a', flyball: '#22d3ee', linedrive: '#fde047',
+    bunt: '#c97c4a', popup: '#a78bfa', basehit: '#4ade80',
+  };
+  const typeLabels = {
+    groundball: 'GB', flyball: 'FB', linedrive: 'LD',
+    bunt: 'BT', popup: 'PU', basehit: 'H',
+  };
+  const mc = typeColors[ht] || '#ff2424';
+  const label = typeLabels[ht] || '';
+
+  ctx.save();
+  ctx.shadowColor = mc + '99';
+  ctx.shadowBlur  = 14;
+
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 11, 0, Math.PI * 2);
+  ctx.fillStyle = mc + '33';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 6.5, 0, Math.PI * 2);
+  ctx.fillStyle = mc;
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  [[-4,-4,4,4],[4,-4,-4,4]].forEach(([x1,y1,x2,y2]) => {
+    ctx.beginPath();
+    ctx.moveTo(pos.x + x1, pos.y + y1);
+    ctx.lineTo(pos.x + x2, pos.y + y2);
+    ctx.stroke();
+  });
+  ctx.lineCap = 'butt';
+
+  if (label) {
+    ctx.font = 'bold 9px system-ui, sans-serif';
+    const lw = ctx.measureText(label).width + 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.beginPath();
+    ctx.roundRect(pos.x - lw / 2, pos.y + 13, lw, 14, 3);
+    ctx.fill();
+    ctx.fillStyle = mc;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, pos.x, pos.y + 20);
+  }
+}
+
+function drawHitTrajectory(pos) {
+  const ht = gameState.hitType;
+  const hx = HOME.x, hy = HOME.y;
+  const tx = pos.x,  ty = pos.y;
+  const dx = tx - hx, dy = ty - hy;
+  const len = Math.hypot(dx, dy);
+
+  ctx.save();
+
+  // Clip all trajectory drawing to the in-play area (fair territory inside the wall)
+  // so arcs never visually overdraw the outfield wall.
+  ctx.beginPath();
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(hx + FIELD_WALL_R * Math.cos(FIELD_END_A),   hy + FIELD_WALL_R * Math.sin(FIELD_END_A));
+  ctx.arc(hx, hy, FIELD_WALL_R, FIELD_END_A, FIELD_START_A, true);  // arc over top
+  ctx.closePath();
+  ctx.clip();
+
+  if (ht === 'flyball') {
+    const midX = (hx + tx) / 2;
+    const midY = (hy + ty) / 2 - len * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.quadraticCurveTo(midX, midY, tx, ty);
+    ctx.strokeStyle = '#22d3ee';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([8, 5]);
+    ctx.globalAlpha = 0.72;
+    ctx.stroke();
+
+  } else if (ht === 'linedrive') {
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(tx, ty);
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.82;
+    ctx.stroke();
+
+  } else if (ht === 'groundball') {
+    const steps = Math.max(3, Math.floor(len / 60));
+    ctx.strokeStyle = '#c97c4a';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.78;
+    for (let i = 0; i < steps; i++) {
+      const t0 = i / steps, t1 = (i + 1) / steps;
+      const x0 = hx + dx * t0, y0 = hy + dy * t0;
+      const x1 = hx + dx * t1, y1 = hy + dy * t1;
+      const cpx = (x0 + x1) / 2;
+      const bounce = Math.max(7, 22 * (1 - i / steps));
+      const cpy = (y0 + y1) / 2 - bounce;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo(cpx, cpy, x1, y1);
+      ctx.stroke();
+    }
+
+  } else if (ht === 'bunt') {
+    const clamp = Math.min(len, 80);
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(hx + (dx / len) * clamp, hy + (dy / len) * clamp);
+    ctx.strokeStyle = '#c97c4a';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.globalAlpha = 0.72;
+    ctx.stroke();
+
+  } else if (ht === 'popup') {
+    // Faint line to location + vertical oval at click
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(tx, ty);
+    ctx.strokeStyle = '#a78bfa';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 5]);
+    ctx.globalAlpha = 0.38;
+    ctx.stroke();
+    ctx.setLineDash([5, 4]);
+    ctx.globalAlpha = 0.72;
+    ctx.beginPath();
+    ctx.ellipse(tx, ty - 26, 11, 28, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = '#a78bfa';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+  } else if (ht === 'basehit') {
+    const ext = 1.45;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(hx + dx * ext, hy + dy * ext);
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 4]);
+    ctx.globalAlpha = 0.72;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  drawField();
+
+  if (hitPoint) {
+    drawHitTrajectory(hitPoint);
+
+    const INFIELD_COLOR  = '#ffd000';
+    const OUTFIELD_COLOR = '#00e5ff';
+
+    for (const p of OUTFIELD) {
+      const d = effectiveDefaults[p], tgt = targets[p];
+      if (tgt) {
+        drawArrow(d.x, d.y, tgt.x, tgt.y, OUTFIELD_COLOR);
+        drawLabel(tgt.x, tgt.y - 18, tgt.desc, OUTFIELD_COLOR);
+      }
+    }
+    for (const p of INFIELD) {
+      const d = effectiveDefaults[p], tgt = targets[p];
+      if (tgt) {
+        drawArrow(d.x, d.y, tgt.x, tgt.y, INFIELD_COLOR);
+        drawLabel(tgt.x, tgt.y - 18, tgt.desc, INFIELD_COLOR);
+      }
+    }
+
+    drawHitMarker(hitPoint);
+  }
+
+  // Fielders drawn at their current animated positions
+  for (const p of OUTFIELD) drawFielder(currentPos[p], p, true);
+  for (const p of INFIELD)  drawFielder(currentPos[p], p, false);
+}
+
+// ─── Events ──────────────────────────────────────────────────────────────────
+
+canvas.addEventListener('click', (e) => {
+  const rect   = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top)  * scaleY;
+
+  if (!isInPlay(x, y)) return;   // outside wall or foul territory — ignore
+
+  hitPoint = {x, y};
+  targets  = computeAndClampTargets(hitPoint);
+
+  const dx   = x - HOME.x;
+  const dy   = HOME.y - y;
+  const dist = Math.hypot(dx, dy);
+  const a    = Math.atan2(dx, dy) * 180 / Math.PI;
+
+  const ht = gameState.hitType;
+  const htName = { groundball: 'Ground ball', flyball: 'Fly ball', linedrive: 'Line drive',
+                   bunt: 'Bunt', popup: 'Pop up', basehit: 'Base hit' }[ht] || 'Hit';
+
+  let zoneTxt = '';
+  if (ht === 'bunt')      { zoneTxt = 'near home plate'; }
+  else if (ht === 'popup'){ zoneTxt = a > 15 ? 'right side' : a < -15 ? 'left side' : 'up the middle'; }
+  else if (dist < 80)     { zoneTxt = 'near home plate'; }
+  else if (dist <= 165)   { zoneTxt = a > 15 ? 'right side' : a < -15 ? 'left side' : 'up the middle'; }
+  else if (dist <= 275)   { zoneTxt = a > 20 ? 'short right' : a < -20 ? 'short left' : 'shallow center'; }
+  else                    { zoneTxt = a > 25 ? 'deep right field' : a < -25 ? 'deep left field' : 'deep center field'; }
+
+  document.getElementById('hint').textContent = htName + ' — ' + zoneTxt + ' — arrows show fielding assignments.';
+  startAnimation(targets);
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+  hitPoint = null;
+  targets  = {};
+  computeEffectiveDefaults();
+  initCurrentPos();
+  document.getElementById('hint').textContent = 'Click the field to see fielding assignments.';
+  draw();
+});
+
+// ── Sidebar controls ─────────────────────────────────────────────────────────
+
+function updateSituationSummary() {
+  const r = gameState.runners;
+  const bases = [];
+  if (r.first)  bases.push('1st');
+  if (r.second) bases.push('2nd');
+  if (r.third)  bases.push('3rd');
+  const runnerText = bases.length === 0
+    ? 'No runners'
+    : 'Runner' + (bases.length > 1 ? 's' : '') + ' on ' + bases.join(', ');
+  const outText = gameState.outs + ' out' + (gameState.outs !== 1 ? 's' : '');
+  document.getElementById('situSummary').innerHTML =
+    '<strong>Current situation</strong>' + runnerText + ' · ' + outText;
+
+  computeEffectiveDefaults();
+
+  if (hitPoint) {
+    targets = computeAndClampTargets(hitPoint);
+    startAnimation(targets);
+  } else {
+    // No hit placed — animate dots to their new pre-pitch starting positions
+    startAnimation(effectiveDefaults);
+  }
+}
+
+// Runner toggle switches (checkbox-driven)
+[['r1-cb','first'], ['r2-cb','second'], ['r3-cb','third']].forEach(([id, base]) => {
+  document.getElementById(id).addEventListener('change', (e) => {
+    gameState.runners[base] = e.target.checked;
+    updateSituationSummary();
+  });
+});
+
+// Outs buttons
+document.querySelectorAll('.out-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    gameState.outs = parseInt(btn.dataset.out);
+    document.querySelectorAll('.out-btn').forEach(b =>
+      b.classList.toggle('active', b === btn));
+    updateSituationSummary();
+  });
+});
+
+// Hit type buttons
+document.querySelectorAll('.ht-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    gameState.hitType = btn.dataset.ht;
+    document.querySelectorAll('.ht-btn').forEach(b =>
+      b.classList.toggle('active', b === btn));
+    if (hitPoint) {
+      targets = computeAndClampTargets(hitPoint);
+      startAnimation(targets);
+    }
+  });
+});
+
+// ─── Player Photos ────────────────────────────────────────────────────────────
+
+const playerPhotos       = {};  // pos → dataURL
+const playerPhotoImages  = {};  // pos → HTMLImageElement (decoded and ready)
+
+const PANEL_POSITIONS = ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
+
+function setPlayerPhoto(pos, dataURL) {
+  playerPhotos[pos] = dataURL;
+  const img = new Image();
+  img.onload = () => {
+    playerPhotoImages[pos] = img;
+    buildPlayerRows();
+    draw();
+  };
+  img.src = dataURL;
+}
+
+function removePlayerPhoto(pos) {
+  delete playerPhotos[pos];
+  delete playerPhotoImages[pos];
+  buildPlayerRows();
+  draw();
+}
+
+function buildPlayerRows() {
+  const list = document.getElementById('playersList');
+  list.innerHTML = '';
+
+  for (const pos of PANEL_POSITIONS) {
+    const hasPhoto = !!playerPhotos[pos];
+
+    const row = document.createElement('div');
+    row.className = 'player-row';
+
+    // Position label
+    const posLabel = document.createElement('span');
+    posLabel.className = 'player-pos-label';
+    posLabel.textContent = pos;
+
+    // Thumbnail or placeholder
+    const thumbWrap = document.createElement('div');
+    thumbWrap.className = 'player-thumb-wrap';
+    if (hasPhoto) {
+      const img = document.createElement('img');
+      img.className = 'player-thumb';
+      img.src = playerPhotos[pos];
+      thumbWrap.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'player-no-photo';
+      ph.textContent = '+';
+      thumbWrap.appendChild(ph);
+    }
+
+    // Hidden file input
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.className = 'photo-file-input';
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => setPlayerPhoto(pos, ev.target.result);
+      reader.readAsDataURL(file);
+      e.target.value = '';  // allow re-selecting the same file
+    });
+
+    // Add / Change button
+    const addBtn = document.createElement('button');
+    addBtn.className = 'photo-add-btn';
+    addBtn.textContent = hasPhoto ? 'Change' : 'Add Photo';
+    addBtn.addEventListener('click', () => fileInput.click());
+
+    // Remove button (hidden when no photo)
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'photo-remove-btn' + (hasPhoto ? '' : ' hidden');
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove photo';
+    removeBtn.addEventListener('click', () => removePlayerPhoto(pos));
+
+    const actions = document.createElement('div');
+    actions.className = 'player-actions';
+    actions.appendChild(fileInput);
+    actions.appendChild(addBtn);
+    actions.appendChild(removeBtn);
+
+    row.appendChild(posLabel);
+    row.appendChild(thumbWrap);
+    row.appendChild(actions);
+    list.appendChild(row);
+  }
+}
+
+document.getElementById('managePlayersBtn').addEventListener('click', () => {
+  buildPlayerRows();
+  document.getElementById('playersModal').classList.remove('hidden');
+});
+
+document.getElementById('closePlayersBtn').addEventListener('click', () => {
+  document.getElementById('playersModal').classList.add('hidden');
+});
+
+// Close on overlay click
+document.getElementById('playersModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) {
+    e.currentTarget.classList.add('hidden');
+  }
+});
+
+draw();
+</script>
+</body>
+</html>

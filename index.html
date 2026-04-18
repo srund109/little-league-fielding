@@ -381,9 +381,6 @@ canvas {
 .photo-remove-btn.hidden { display: none; }
 .photo-add-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 </style>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 </head>
 <body>
 
@@ -486,25 +483,16 @@ canvas {
 </div>
 
 <script>
-// ── Firebase setup ────────────────────────────────────────────────────────────
-const firebaseConfig = {
-  apiKey: "AIzaSyDvzIj_Ibnc44bZe1AApMiyRU6wT02hvz8",
-  authDomain: "little-league-fielding.firebaseapp.com",
-  projectId: "little-league-fielding",
-  storageBucket: "little-league-fielding.appspot.com",
-  messagingSenderId: "126859461793",
-  appId: "1:126859461793:web:426c67226d93e7cbec1ce0"
-};
-
-let db = null, fbStorage = null, firebaseReady = false;
-try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-  fbStorage = firebase.storage();
-  firebaseReady = true;
-} catch(e) {
-  console.warn('Firebase unavailable, running in local mode:', e);
-}
+// ── Cloudinary setup ──────────────────────────────────────────────────────────
+// IMPORTANT: Unsigned uploads require an unsigned upload preset.
+// If uploads fail with a 401 error, go to Cloudinary Console →
+// Settings → Upload → Upload presets, find "ml_default" and set its
+// "Signing mode" to "Unsigned". If ml_default doesn't exist, create a new
+// preset set to Unsigned and update CLOUDINARY_UPLOAD_PRESET below.
+const CLOUDINARY_CLOUD_NAME    = 'dthwl4d8n';
+const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
+const CLOUDINARY_FOLDER        = 'little-league';
+const CLOUDINARY_UPLOAD_URL    = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 const canvas = document.getElementById('field');
 const ctx = canvas.getContext('2d');
@@ -2169,9 +2157,9 @@ document.querySelectorAll('.ht-btn').forEach(btn => {
 
 // ─── Player Photos ────────────────────────────────────────────────────────────
 
-const playerPhotos       = {};  // pos → URL (dataURL or Firebase download URL)
+const playerPhotos       = {};  // pos → Cloudinary URL
 const playerPhotoImages  = {};  // pos → HTMLImageElement (decoded and ready)
-const uploadingPositions = new Set();  // positions currently uploading to Firebase
+const uploadingPositions = new Set();  // positions currently uploading
 const failedPositions    = new Set();  // positions whose last upload failed
 
 const PANEL_POSITIONS = ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
@@ -2187,37 +2175,38 @@ function startSpinnerLoop() {
   spinnerAnimId = requestAnimationFrame(loop);
 }
 
-function setPlayerPhoto(pos, dataURL) {
-  playerPhotos[pos] = dataURL;
-  const img = new Image();
-  img.onload = () => {
-    playerPhotoImages[pos] = img;
-    buildPlayerRows();
-    draw();
-  };
-  img.src = dataURL;
-
-  if (!firebaseReady) return;
-
+function setPlayerPhoto(pos, file) {
   failedPositions.delete(pos);
   uploadingPositions.add(pos);
   buildPlayerRows();
   startSpinnerLoop();
 
-  const UPLOAD_TIMEOUT_MS = 15000;
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Upload timed out after 15 seconds')), UPLOAD_TIMEOUT_MS)
-  );
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  formData.append('folder', CLOUDINARY_FOLDER);
+  formData.append('public_id', pos);
 
-  const upload = fetch(dataURL)
-    .then(r => r.blob())
-    .then(blob => fbStorage.ref(`players/${pos}.jpg`).put(blob, { contentType: blob.type || 'image/jpeg' }))
-    .then(snap => snap.ref.getDownloadURL())
-    .then(url => db.collection('roster').doc(pos).set({ photoURL: url }));
+  const upload = fetch(CLOUDINARY_UPLOAD_URL, { method: 'POST', body: formData })
+    .then(r => {
+      if (!r.ok) return r.json().then(e => { throw new Error(e.error?.message || `HTTP ${r.status}`); });
+      return r.json();
+    })
+    .then(data => new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { playerPhotos[pos] = data.secure_url; playerPhotoImages[pos] = img; resolve(); };
+      img.onerror = () => reject(new Error('Failed to load uploaded image from Cloudinary'));
+      img.src = data.secure_url;
+    }));
+
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Upload timed out after 15 seconds')), 15000)
+  );
 
   Promise.race([upload, timeout])
     .catch(err => {
-      console.error(`Firebase upload failed for position ${pos}:`, err);
+      console.error(`Cloudinary upload failed for position ${pos}:`, err);
       failedPositions.add(pos);
     })
     .finally(() => {
@@ -2230,16 +2219,11 @@ function setPlayerPhoto(pos, dataURL) {
 function removePlayerPhoto(pos) {
   delete playerPhotos[pos];
   delete playerPhotoImages[pos];
+  failedPositions.delete(pos);
   buildPlayerRows();
   draw();
-
-  failedPositions.delete(pos);
-
-  if (!firebaseReady) return;
-  db.collection('roster').doc(pos).delete()
-    .catch(err => console.error(`Firestore delete failed for ${pos}:`, err));
-  fbStorage.ref(`players/${pos}.jpg`).delete()
-    .catch(err => console.error(`Storage delete failed for ${pos}:`, err));
+  // Photo remains in Cloudinary — only the local display is cleared.
+  // Re-loading the page will restore it unless a new photo is uploaded for the same position.
 }
 
 function buildPlayerRows() {
@@ -2280,10 +2264,8 @@ function buildPlayerRows() {
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => setPlayerPhoto(pos, ev.target.result);
-      reader.readAsDataURL(file);
       e.target.value = '';  // allow re-selecting the same file
+      setPlayerPhoto(pos, file);
     });
 
     // Add / Change button
@@ -2317,28 +2299,19 @@ function buildPlayerRows() {
   }
 }
 
-async function loadRosterFromFirestore() {
-  if (!firebaseReady) return;
-  try {
-    const snap = await db.collection('roster').get();
-    const loads = [];
-    snap.forEach(doc => {
-      const pos = doc.id;
-      const { photoURL } = doc.data();
-      if (!photoURL || !PANEL_POSITIONS.includes(pos)) return;
-      loads.push(new Promise(resolve => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => { playerPhotos[pos] = photoURL; playerPhotoImages[pos] = img; resolve(); };
-        img.onerror = resolve;
-        img.src = photoURL;
-      }));
-    });
-    await Promise.all(loads);
-    buildPlayerRows();
-  } catch(e) {
-    console.warn('Failed to load roster from Firebase:', e);
-  }
+async function loadRosterFromCloudinary() {
+  // Probe each position's predictable Cloudinary URL. Cloudinary returns a 404
+  // for public_ids that don't exist yet, so img.onerror just skips those slots.
+  const loads = PANEL_POSITIONS.map(pos => new Promise(resolve => {
+    const url = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${CLOUDINARY_FOLDER}/${pos}`;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload  = () => { playerPhotos[pos] = url; playerPhotoImages[pos] = img; resolve(); };
+    img.onerror = resolve;  // position has no photo yet — skip silently
+    img.src = url;
+  }));
+  await Promise.all(loads);
+  buildPlayerRows();
 }
 
 document.getElementById('managePlayersBtn').addEventListener('click', () => {
@@ -2358,7 +2331,7 @@ document.getElementById('playersModal').addEventListener('click', (e) => {
 });
 
 draw();
-loadRosterFromFirestore().then(() => draw());
+loadRosterFromCloudinary().then(() => draw());
 </script>
 </body>
 </html>

@@ -15,7 +15,7 @@ body {
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: #e2e8f0;
 }
- 
+
 /* ── Top bar ── */
 .top-bar {
   background: #0f172a;
@@ -379,7 +379,11 @@ canvas {
 }
 .photo-remove-btn:hover { background: #7f1d1d; color: #fff; }
 .photo-remove-btn.hidden { display: none; }
+.photo-add-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 </head>
 <body>
 
@@ -482,6 +486,26 @@ canvas {
 </div>
 
 <script>
+// ── Firebase setup ────────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDvzIj_Ibnc44bZe1AApMiyRU6wT02hvz8",
+  authDomain: "little-league-fielding.firebaseapp.com",
+  projectId: "little-league-fielding",
+  storageBucket: "little-league-fielding.firebasestorage.app",
+  messagingSenderId: "126859461793",
+  appId: "1:126859461793:web:426c67226d93e7cbec1ce0"
+};
+
+let db = null, fbStorage = null, firebaseReady = false;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  fbStorage = firebase.storage();
+  firebaseReady = true;
+} catch(e) {
+  console.warn('Firebase unavailable, running in local mode:', e);
+}
+
 const canvas = document.getElementById('field');
 const ctx = canvas.getContext('2d');
 const W = 700, H = 680;
@@ -1806,6 +1830,18 @@ function drawFielder(pos, label, isOutfielder) {
     ctx.textBaseline = 'middle';
     ctx.fillText(label, pos.x, pos.y);
   }
+
+  if (uploadingPositions.has(label)) {
+    const angle = (Date.now() / 250) % (Math.PI * 2);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r - 3, angle, angle + Math.PI * 1.4);
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function drawHitMarker(pos) {
@@ -2104,10 +2140,22 @@ document.querySelectorAll('.ht-btn').forEach(btn => {
 
 // ─── Player Photos ────────────────────────────────────────────────────────────
 
-const playerPhotos       = {};  // pos → dataURL
+const playerPhotos       = {};  // pos → URL (dataURL or Firebase download URL)
 const playerPhotoImages  = {};  // pos → HTMLImageElement (decoded and ready)
+const uploadingPositions = new Set();  // positions currently uploading to Firebase
 
 const PANEL_POSITIONS = ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
+
+let spinnerAnimId = null;
+function startSpinnerLoop() {
+  if (spinnerAnimId) return;
+  function loop() {
+    if (uploadingPositions.size === 0) { spinnerAnimId = null; return; }
+    draw();
+    spinnerAnimId = requestAnimationFrame(loop);
+  }
+  spinnerAnimId = requestAnimationFrame(loop);
+}
 
 function setPlayerPhoto(pos, dataURL) {
   playerPhotos[pos] = dataURL;
@@ -2118,6 +2166,23 @@ function setPlayerPhoto(pos, dataURL) {
     draw();
   };
   img.src = dataURL;
+
+  if (!firebaseReady) return;
+
+  uploadingPositions.add(pos);
+  buildPlayerRows();
+  startSpinnerLoop();
+
+  fetch(dataURL)
+    .then(r => r.blob())
+    .then(blob => fbStorage.ref(`players/${pos}.jpg`).put(blob, { contentType: blob.type || 'image/jpeg' }))
+    .then(snap => snap.ref.getDownloadURL())
+    .then(url => db.collection('roster').doc(pos).set({ photoURL: url }))
+    .catch(err => console.warn('Firebase upload failed for', pos, ':', err))
+    .finally(() => {
+      uploadingPositions.delete(pos);
+      buildPlayerRows();
+    });
 }
 
 function removePlayerPhoto(pos) {
@@ -2125,6 +2190,12 @@ function removePlayerPhoto(pos) {
   delete playerPhotoImages[pos];
   buildPlayerRows();
   draw();
+
+  if (!firebaseReady) return;
+  db.collection('roster').doc(pos).delete()
+    .catch(err => console.warn('Firestore delete failed for', pos, ':', err));
+  fbStorage.ref(`players/${pos}.jpg`).delete()
+    .catch(err => console.warn('Storage delete failed for', pos, ':', err));
 }
 
 function buildPlayerRows() {
@@ -2174,7 +2245,9 @@ function buildPlayerRows() {
     // Add / Change button
     const addBtn = document.createElement('button');
     addBtn.className = 'photo-add-btn';
-    addBtn.textContent = hasPhoto ? 'Change' : 'Add Photo';
+    const isUploading = uploadingPositions.has(pos);
+    addBtn.textContent = isUploading ? 'Uploading…' : hasPhoto ? 'Change' : 'Add Photo';
+    addBtn.disabled = isUploading;
     addBtn.addEventListener('click', () => fileInput.click());
 
     // Remove button (hidden when no photo)
@@ -2197,6 +2270,30 @@ function buildPlayerRows() {
   }
 }
 
+async function loadRosterFromFirestore() {
+  if (!firebaseReady) return;
+  try {
+    const snap = await db.collection('roster').get();
+    const loads = [];
+    snap.forEach(doc => {
+      const pos = doc.id;
+      const { photoURL } = doc.data();
+      if (!photoURL || !PANEL_POSITIONS.includes(pos)) return;
+      loads.push(new Promise(resolve => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => { playerPhotos[pos] = photoURL; playerPhotoImages[pos] = img; resolve(); };
+        img.onerror = resolve;
+        img.src = photoURL;
+      }));
+    });
+    await Promise.all(loads);
+    buildPlayerRows();
+  } catch(e) {
+    console.warn('Failed to load roster from Firebase:', e);
+  }
+}
+
 document.getElementById('managePlayersBtn').addEventListener('click', () => {
   buildPlayerRows();
   document.getElementById('playersModal').classList.remove('hidden');
@@ -2214,6 +2311,7 @@ document.getElementById('playersModal').addEventListener('click', (e) => {
 });
 
 draw();
+loadRosterFromFirestore().then(() => draw());
 </script>
 </body>
 </html>

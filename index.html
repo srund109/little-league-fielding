@@ -380,6 +380,92 @@ canvas {
 .photo-remove-btn:hover { background: #7f1d1d; color: #fff; }
 .photo-remove-btn.hidden { display: none; }
 .photo-add-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Mobile sidebar overlay ── */
+#settingsToggleBtn {
+  display: none;
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 500;
+  padding: 8px 13px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1.5px solid #334155;
+  border-radius: 7px;
+  font-size: 0.82em;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+#settingsToggleBtn:hover { background: #263347; color: #e2e8f0; }
+
+.sidebar-mobile-close {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  #settingsToggleBtn {
+    display: block;
+  }
+
+  .app-layout {
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 270px;
+    max-width: 85vw;
+    border-radius: 0;
+    z-index: 400;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    padding-top: 14px;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-mobile-close {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+  }
+
+  .sidebar-mobile-close button {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 1.1em;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: inherit;
+    line-height: 1;
+    transition: all 0.12s;
+  }
+
+  .sidebar-mobile-close button:hover { color: #f1f5f9; background: #1e293b; }
+
+  #sidebarBackdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 399;
+  }
+
+  #sidebarBackdrop.open { display: block; }
+}
 </style>
 </head>
 <body>
@@ -388,6 +474,9 @@ canvas {
   <span class="top-bar-title">Little League Fielding Guide</span>
   <span class="top-bar-sub">Click the field to see fielding assignments</span>
 </header>
+
+<button id="settingsToggleBtn">⚙ Settings</button>
+<div id="sidebarBackdrop"></div>
 
 <div class="app-layout">
 
@@ -411,7 +500,8 @@ canvas {
   </div>
 
   <!-- Sidebar -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-mobile-close"><button id="sidebarCloseBtn">✕</button></div>
     <div class="sidebar-heading">Game Situation</div>
 
     <div class="sidebar-section">
@@ -2030,27 +2120,37 @@ function draw() {
     const INFIELD_COLOR  = '#ffd000';
     const OUTFIELD_COLOR = '#00e5ff';
 
+    // Pass 1: arrows only
     for (const p of OUTFIELD) {
       const d = effectiveDefaults[p], tgt = targets[p];
-      if (tgt) {
-        drawArrow(d.x, d.y, tgt.x, tgt.y, OUTFIELD_COLOR);
-        drawLabel(tgt.x, tgt.y - 18, tgt.desc, OUTFIELD_COLOR);
-      }
+      if (tgt) drawArrow(d.x, d.y, tgt.x, tgt.y, OUTFIELD_COLOR);
     }
     for (const p of INFIELD) {
       const d = effectiveDefaults[p], tgt = targets[p];
-      if (tgt) {
-        drawArrow(d.x, d.y, tgt.x, tgt.y, INFIELD_COLOR);
-        drawLabel(tgt.x, tgt.y - 18, tgt.desc, INFIELD_COLOR);
-      }
+      if (tgt) drawArrow(d.x, d.y, tgt.x, tgt.y, INFIELD_COLOR);
     }
 
     drawHitMarker(hitPoint);
   }
 
-  // Fielders drawn at their current animated positions
+  // Pass 2: fielder dots (on top of arrows)
   for (const p of OUTFIELD) drawFielder(currentPos[p], p, true);
   for (const p of INFIELD)  drawFielder(currentPos[p], p, false);
+
+  if (hitPoint) {
+    const INFIELD_COLOR  = '#ffd000';
+    const OUTFIELD_COLOR = '#00e5ff';
+
+    // Pass 3: labels on top of everything
+    for (const p of OUTFIELD) {
+      const tgt = targets[p];
+      if (tgt) drawLabel(tgt.x, tgt.y - 18, tgt.desc, OUTFIELD_COLOR);
+    }
+    for (const p of INFIELD) {
+      const tgt = targets[p];
+      if (tgt) drawLabel(tgt.x, tgt.y - 18, tgt.desc, INFIELD_COLOR);
+    }
+  }
 }
 
 // ─── Events ──────────────────────────────────────────────────────────────────
@@ -2331,6 +2431,21 @@ document.getElementById('playersModal').addEventListener('click', (e) => {
     e.currentTarget.classList.add('hidden');
   }
 });
+
+// ── Mobile sidebar toggle ─────────────────────────────────────────────────────
+const sidebar          = document.getElementById('sidebar');
+const sidebarBackdrop  = document.getElementById('sidebarBackdrop');
+const settingsToggleBtn = document.getElementById('settingsToggleBtn');
+const sidebarCloseBtn  = document.getElementById('sidebarCloseBtn');
+
+function openSidebar()  { sidebar.classList.add('open'); sidebarBackdrop.classList.add('open'); }
+function closeSidebar() { sidebar.classList.remove('open'); sidebarBackdrop.classList.remove('open'); }
+
+settingsToggleBtn.addEventListener('click', () =>
+  sidebar.classList.contains('open') ? closeSidebar() : openSidebar()
+);
+sidebarCloseBtn.addEventListener('click', closeSidebar);
+sidebarBackdrop.addEventListener('click', closeSidebar);
 
 draw();
 loadRosterFromCloudinary().then(() => draw());

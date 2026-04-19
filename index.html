@@ -490,7 +490,7 @@ canvas {
 // "Signing mode" to "Unsigned". If ml_default doesn't exist, create a new
 // preset set to Unsigned and update CLOUDINARY_UPLOAD_PRESET below.
 const CLOUDINARY_CLOUD_NAME    = 'dthwl4d8n';
-const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
+const CLOUDINARY_UPLOAD_PRESET = 'little-league-unsigned';
 const CLOUDINARY_FOLDER        = 'little-league';
 const CLOUDINARY_UPLOAD_URL    = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
@@ -2335,4 +2335,5 @@ loadRosterFromCloudinary().then(() => draw());
 </script>
 </body>
 </html>
+
 

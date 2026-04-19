@@ -2184,8 +2184,7 @@ function setPlayerPhoto(pos, file) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  formData.append('public_id', `${CLOUDINARY_FOLDER}/${pos}`);
-  formData.append('overwrite', 'true');
+  formData.append('folder', `${CLOUDINARY_FOLDER}/${pos}`);
 
   const upload = fetch(CLOUDINARY_UPLOAD_URL, { method: 'POST', body: formData })
     .then(r => {
@@ -2195,7 +2194,12 @@ function setPlayerPhoto(pos, file) {
     .then(data => new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.onload = () => { playerPhotos[pos] = data.secure_url; playerPhotoImages[pos] = img; resolve(); };
+      img.onload = () => {
+        playerPhotos[pos] = data.secure_url;
+        playerPhotoImages[pos] = img;
+        localStorage.setItem(`player_photo_${pos}`, data.secure_url);
+        resolve();
+      };
       img.onerror = () => reject(new Error('Failed to load uploaded image from Cloudinary'));
       img.src = data.secure_url;
     }));
@@ -2220,10 +2224,9 @@ function removePlayerPhoto(pos) {
   delete playerPhotos[pos];
   delete playerPhotoImages[pos];
   failedPositions.delete(pos);
+  localStorage.removeItem(`player_photo_${pos}`);
   buildPlayerRows();
   draw();
-  // Photo remains in Cloudinary — only the local display is cleared.
-  // Re-loading the page will restore it unless a new photo is uploaded for the same position.
 }
 
 function buildPlayerRows() {
@@ -2300,14 +2303,13 @@ function buildPlayerRows() {
 }
 
 async function loadRosterFromCloudinary() {
-  // Probe each position's predictable Cloudinary URL. Cloudinary returns a 404
-  // for public_ids that don't exist yet, so img.onerror just skips those slots.
   const loads = PANEL_POSITIONS.map(pos => new Promise(resolve => {
-    const url = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${CLOUDINARY_FOLDER}/${pos}`;
+    const url = localStorage.getItem(`player_photo_${pos}`);
+    if (!url) return resolve();
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload  = () => { playerPhotos[pos] = url; playerPhotoImages[pos] = img; resolve(); };
-    img.onerror = resolve;  // position has no photo yet — skip silently
+    img.onerror = resolve;
     img.src = url;
   }));
   await Promise.all(loads);
@@ -2335,5 +2337,6 @@ loadRosterFromCloudinary().then(() => draw());
 </script>
 </body>
 </html>
+
 
 

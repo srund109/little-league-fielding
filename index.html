@@ -2184,8 +2184,8 @@ function setPlayerPhoto(pos, file) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  formData.append('folder', CLOUDINARY_FOLDER);
-  formData.append('public_id', pos);
+  formData.append('public_id', `${CLOUDINARY_FOLDER}/${pos}`);
+  formData.append('overwrite', 'true');
 
   const upload = fetch(CLOUDINARY_UPLOAD_URL, { method: 'POST', body: formData })
     .then(r => {
